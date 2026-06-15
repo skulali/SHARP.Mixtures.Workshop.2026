@@ -1,8 +1,8 @@
-# SHARP Environmental Mixtures Workshop 2023
+# SHARP Environmental Mixtures Workshop 2026
 
 ![](Images/banner.png)
 
-Columbia University, Mailman School of Public Health. Environmental Mixtures Workshop. July 26-27, 2023. Introduction to multiple techniques to analyze exposure to mixtures in environmental health.
+Columbia University, Mailman School of Public Health. Environmental Mixtures Workshop. July 23-24, 2026. Introduction to multiple techniques to analyze exposure to mixtures in environmental health.
 
 ## Repository guide
 
