@@ -114,7 +114,7 @@ loadings_pca <- pca.ln.ld %>%
                                       ifelse(grepl("lbxp", chem), "Non-Ortho PCBs",
                                              ifelse(grepl("lbxh", chem), "Non-Ortho PCBs", "mPFD"))))))
 plot_loadings_pca <- loadings_pca %>% 
-  gather(key = "PC", value = "Loading", -chem, -Group) %>% as.tibble()
+  gather(key = "PC", value = "Loading", -chem, -Group) %>% as_tibble()
 
 plot_loadings_pca %>% 
   filter(PC %in% c("PC1", "PC2", "PC3")) %>% 
@@ -144,14 +144,14 @@ plot_loadings_pca %>%
   facet_wrap(~ PC) + theme_bw() + 
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1),
         strip.background = element_rect(fill = "white")) +
-  geom_hline(yintercept = 0, size = 0.2) +
+  geom_hline(yintercept = 0, linewidth = 0.2) +
   labs(x = "Chemicals",
        y = "Loadings")
 ```
 
 ## Principal Component Biplot w/ Log-Transformed PCA Results
 
-```{r PCA biplot}
+```{r PCA biplot, warning=F}
 #Creates a biplot showing the loadings for principal component 1 and 2. 
 autoplot(pca.ln, data = log.x, size = 0.8, colour = 'blue', alpha = 0.5,
          loadings = TRUE, loadings.colour = 'orange',
@@ -174,7 +174,7 @@ pop <- read_csv(here::here("Data/studypop.csv")) %>%
   mutate(logtelomean = log(telomean))
 
 
-pop_pca <- as.tibble((cbind(pop, x)))
+pop_pca <- as_tibble((cbind(pop, x)))
 ```
 
 Put 3 components (continuous) into a linear regression w/ covariates to estimate association with LTL.
@@ -212,7 +212,7 @@ PCA_betas_confint
 ### Plot Health Model
 
 ```{r}
-health_model_pca %>% broom::tidy() %>% as.tibble() %>% filter(grepl("PC", term)) %>% 
+health_model_pca %>% broom::tidy() %>% as_tibble() %>% filter(grepl("PC", term)) %>% 
   ggplot(aes(x = term, y = estimate, color = term,
              ymin = estimate - 1.96*std.error,
              ymax = estimate + 1.96*std.error)) +

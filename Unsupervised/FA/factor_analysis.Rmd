@@ -26,6 +26,8 @@ library(ggrepel)
 
 #This turns off scientific notation
 options(scipen = 999)
+
+# Note: minor differences from the 2019 Gibson et al paper are due to the updated psych package
 ```
 
 ## Data Import and Cleaning
@@ -152,7 +154,7 @@ fit %>% knitr::kable()
 Choose Promax 4 factor model based on fit statistics and interpretability.
 
 ```{r}
-loadings <- as.tibble(cbind(rownames(fa_4_p$loadings[]), fa_4_p$loadings[])) %>% 
+loadings <- as_tibble(cbind(rownames(fa_4_p$loadings[]), fa_4_p$loadings[])) %>% 
   rename(Variable = V1) %>% 
   mutate(ML1 = as.numeric(ML1),
          ML2 = as.numeric(ML2),
@@ -216,7 +218,7 @@ loadings %>%
   labs(title = "Variable Loadings on First and Third Factors")
 ```
 
-```{r}
+```{r, warning=F}
 plot_loadings <- loadings %>% 
   # dplyr::select(-Max) %>% 
   gather(key = "Factor", value = "Loading", -Variable, -Group)
@@ -251,7 +253,7 @@ plot_loadings %>%
   facet_wrap(~ Factor) + theme_bw() + 
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, hjust = 1),
         strip.background = element_rect(fill = "white")) +
-  coord_flip() + geom_hline(yintercept = 0, size = 0.2)
+  coord_flip() + geom_hline(yintercept = 0, linewidth = 0.2)
 
 plot_loadings %>% 
     mutate(Loading = as.numeric(Loading)) %>%  
@@ -259,7 +261,7 @@ plot_loadings %>%
   ggplot(aes(x = Factor, y = Loading, fill = Factor)) + geom_col(position = "dodge") +
   facet_wrap(~ Variable) + 
   theme_bw() + theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1)) +
-  coord_flip() + geom_hline(yintercept = 0, size = 0.2) +
+  coord_flip() + geom_hline(yintercept = 0, linewidth = 0.2) +
   labs(title = "Variable Loadings on All Factors")
 ```
 
