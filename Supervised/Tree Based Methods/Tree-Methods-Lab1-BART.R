@@ -11,7 +11,7 @@ library(BART)
 
 ## ----load bartmix, message=FALSE----------------------------------------------
 # install.packages("remotes")
-# remotes::install_github("AnderWilson/bartmix")
+remotes::install_github("AnderWilson/bartmix")
 library(bartmix)
 
 ## ----load data----------------------------------------------------------------
