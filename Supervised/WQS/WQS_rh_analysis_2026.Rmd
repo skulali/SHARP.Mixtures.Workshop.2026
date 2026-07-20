@@ -1,0 +1,108 @@
+---
+title: "Weighted Quantile Sum Regression"
+author: "Chris Gennings"
+date: "7/22/26"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth : 4
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=TRUE, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(gWQS) # if you get an error loading the gWQS package, need to download x11 (XQuartz for Mac)
+library(tidyverse)
+library(xtable)
+library(knitr)
+
+options(scipen = 999)
+```
+
+```{r}
+directory_path = "/cloud/project/Supervised/WQS/Data/"
+
+load(paste0(directory_path,"dataset.RData"))
+mixture = c("LBX074LA", "LBX099LA", "LBX118LA", "LBX138LA", "LBX153LA", "LBX170LA", "LBX180LA", "LBX187LA",
+             "LBX194LA", "LBXD03LA", "LBXD05LA", "LBXD07LA", "LBXF03LA", "LBXF04LA", "LBXF05LA", "LBXF08LA",
+             "LBXHXCLA", "LBXPCBLA")
+mixture
+is.factor(dataset$male)
+```
+
+# WQS stratified interaction
+```{r, echo=TRUE}
+################################ takes FOREVER ##########################
+#repeated holdout stratified interaction WQS
+## positive direction
+# result6rh = gwqs(log_TELOMEAN ~ wqs*male +
+#                  LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                  race_cat + bmi_cat3 + ln_lbxcot + edu_cat , 
+#                  stratified="male", 
+#                  mix_name = mixture, data = dataset, q = 10, validation = 0.6, b = 50, 
+#                b1_pos = TRUE, b_constr = TRUE, bint_cat_pos = TRUE,
+#                family = "gaussian", seed = 123, rh=100)
+
+#saveRDS(result6rh, file="Supervised/WQS/saved_model/result6rh100.rds")
+result6rh = readRDS("Supervised/WQS/saved_model/result6rh100.rds")
+
+gwqs_summary_tab(result6rh, sumtype="norm")
+gwqs_summary_tab(result6rh, sumtype="perc")
+gwqs_boxplot(result6rh) 
+
+b1 = result6rh$coefmat[,2] # beta (b1) for reference group = females
+quantile(b1, prob=c(0.025, 0.5, 0.975))
+b12= result6rh$coefmat[,21] # interaction beta (b12)
+quantile(b12, prob=c(0.025, 0.5, 0.975))
+b2  = b1+b12  # beta for non reference group = males
+summary(b2)
+sum(b2>0)
+quantile(b2, prob=c(0.025, 0.5, 0.975))
+
+write.csv(result6rh$wmat, file=paste0(directory_path, "result6rhwtmat.csv"))
+write.csv(result6rh$coefmat, file=paste0(directory_path, "result6rhcoefmat.csv"))
+write.csv(result6rh$final_weights, file=paste0(directory_path, "result6rhfinalweights.csv"))
+
+```
+
+# divergent plots
+```{r, echo=TRUE}
+library(gapminder)
+library(tidyverse)
+library(stringr)
+
+forplot = result6rh$final_weights  ## specify the data to be used in the plot; i.e., WQS str int model
+forplot$mean_weight = forplot$Estimate ## if the str int model is run
+
+forplot$strata = str_sub(forplot$mix_name,-1)
+forplot$chem = str_sub(forplot$mix_name,1,nchar(as.character(forplot$mix_name))-2)
+forplot$strataname = ifelse(forplot$strata == "1", "Male", "Female")
+
+resultstr <- forplot %>%
+  mutate(mean_weight = ifelse(strata == "1",
+                              mean_weight,
+                              -1*mean_weight)) 
+resultstr
+dim(resultstr)
+## calculate breaks values
+breaks_values <- pretty(resultstr$mean_weight)
+
+ggplot(data=resultstr,
+       aes(reorder(x = chem, mean_weight), y = mean_weight, fill = strataname))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  scale_y_continuous(breaks = breaks_values,
+                     labels = abs(breaks_values))+
+  theme_minimal()+
+  geom_hline(yintercept = 1/nrow(resultstr), linetype='dotted', col='black')+  
+  geom_hline(yintercept = -1/nrow(resultstr), linetype='dotted', col='black')+
+  geom_hline(yintercept = 0, col='black')+  
+  labs(x="Component", y="Mean Weight", fill="Strata")
+```
+ 
+
+
+ 

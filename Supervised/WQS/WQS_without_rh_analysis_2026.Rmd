@@ -1,0 +1,364 @@
+
+---
+title: "Weighted Quantile Sum Regression"
+author: "Chris Gennings"
+date: "7/24/26"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    toc_depth : 4
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=TRUE, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(gWQS) # if you get an error loading the gWQS package, need to download x11 (XQuartz for Mac)
+library(tidyverse)
+library(xtable)
+library(knitr)
+
+options(scipen = 999)
+
+```
+
+## Data Import and Cleaning
+
+```{r, import}
+
+directory_path = "/cloud/project/Supervised/WQS/Data/"
+
+dataset_ = read.csv(paste0(directory_path, "studypop.csv"))
+dataset = dataset_[complete.cases(dataset_),]
+table(dataset$male)
+
+# define the chemicals to include in the mixture
+ mixture = c("LBX074LA", "LBX099LA", "LBX118LA", "LBX138LA", "LBX153LA", "LBX170LA", "LBX180LA", "LBX187LA",
+             "LBX194LA", "LBXD03LA", "LBXD05LA", "LBXD07LA", "LBXF03LA", "LBXF04LA", "LBXF05LA", "LBXF08LA",
+             "LBXHXCLA", "LBXPCBLA")
+
+dataset = dataset %>% mutate(male = as.factor(male),
+                             edu_cat = as.factor(edu_cat),
+                             race_cat = as.factor(race_cat),
+                             bmi_cat3 = as.factor(bmi_cat3))
+
+# log-transform the outcome
+dataset$log_TELOMEAN = log(dataset$TELOMEAN)
+hist(dataset$log_TELOMEAN)
+#summary(dataset)
+
+#save(dataset, file=paste0(directory_path, "dataset.RData"))
+```
+
+################################################################
+# # correlation among the chemicals
+
+```{r}
+#install.packages("corrplot")
+library("corrplot")
+
+forcorr = data.frame(dataset[,mixture])
+forcorr = forcorr[complete.cases(forcorr),]
+corrplot(cor(forcorr), method="circle", sig.level = c(.001, .01, .05), type="upper")
+```
+
+###############################################################
+## covariate only model and too full model
+
+```{r}
+cov_only = glm(log_TELOMEAN ~ LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+                race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male,  data = dataset)
+summary(cov_only)
+
+# with all chemicals and covariates
+toofull = glm(scale(log_TELOMEAN) ~ LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+                race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male + 
+                LBX074LA +LBX099LA +LBX118LA +LBX138LA +LBX153LA +LBX170LA +LBX180LA +LBX187LA +
+                LBX194LA +LBXD03LA +LBXD05LA +LBXD07LA +LBXF03LA +LBXF04LA +LBXF05LA +LBXF08LA +
+                LBXHXCLA +LBXPCBLA,
+                data = dataset)
+summary(toofull)
+
+```
+
+
+## Single Chemical Analysis
+
+```{r, single, echo=TRUE, cache=TRUE }
+library(broom)
+library(tidyr)
+library(dplyr)
+### log2 transformed
+datalog = dataset
+datalog[, mixture] <- lapply(dataset[, mixture], log, 2)
+
+##  Quantile-transformation
+dataquant = dataset
+dataquant[, mixture] <- lapply(dataset[, mixture], ntile, 10)
+
+#######################################################
+# Linear Model w/ one biomarker 
+# create a list of markers of interest
+biomarkers <- mixture
+# linear model
+lm_fit <-
+  lapply(biomarkers, function(x){
+    temp = dataquant[,c(mixture, "log_TELOMEAN", 
+                      "LBXWBCSI", "LBXLYPCT", "LBXMOPCT","LBXEOPCT", "LBXBAPCT","LBXNEPCT",
+                      "age_cent", "age_sq", "race_cat", "bmi_cat3", "ln_lbxcot", "edu_cat", "male")] 
+    temp= temp[complete.cases(temp),]
+    glm(
+      formula = substitute(log_TELOMEAN ~ i + 
+                             LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+                             race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male,
+                           list(i = as.name(x))),
+      data = temp,
+      family = gaussian())
+  })
+
+# creates a table with multiple lists
+# number of lists created = number of biomarkers chosen
+# extract coefficients with confidence interval
+#lm_coefs <- lapply(lm_fit, tidy, conf.int = T)
+
+#save(lm_coefs, file="Supervised/WQS/saved_model/lm_coefs.RData") 
+load("Supervised/WQS/saved_model/lm_coefs.RData")
+
+names(lm_coefs) <- biomarkers
+
+# combine all lists into one big table
+# gives estimates and CI for biomarkers and variables
+lm_coefs <- bind_rows(lm_coefs, .id = "biomarkers")
+
+# subset estimates and CI for _only the biomarkers_
+lm_coefs <- filter(lm_coefs, term %in% biomarkers)
+
+lm_coefs
+
+#write.csv(lm_coefs, file=paste0(directory_path, "single_log2.csv"))
+write.csv(lm_coefs, file=paste0(directory_path, "single_decile.csv"))
+```
+## WQS
+
+### Model 1
+
+```{r, model1, echo=TRUE, cache = TRUE}
+# first fit an unadjusted model to look at the association between the mixture and the outcome
+# TELOMEAN = Mean Telomere Length
+#results1 = gwqs(log_TELOMEAN ~ wqs, mix_name = mixture, data = dataset, q = 10, validation = 0.6, 
+#                b = 100, b1_pos = FALSE, b_constr = FALSE, family = "gaussian", seed = 123)
+# with positive direction we get this note:
+#  There are no b1 or bint values in the specified direction(s) among the bootstrapped models
+
+#save(results1, file="Supervised/WQS/saved_model/results1.RData") 
+load("Supervised/WQS/saved_model/results1.RData")
+
+gwqs_barplot(results1)
+gwqs_scatterplot(results1)
+gwqs_summary_tab(results1)
+
+sum(results1$bres$b1 < 0) 
+
+summary(results1$fit)
+#results1$final_weights
+```
+
+### Model 2
+
+```{r, model2, echo=TRUE, cache = TRUE}
+# adjusting for covariates:
+# blood data: LBXWBCSI LBXLYPCT LBXMOPCT LBXEOPCT LBXBAPCT LBXNEPCT
+# demographics: age_cent age_sq race_cat bmi_cat3 ln_lbxcot edu_cat male
+# positive direction
+
+#result2 = gwqs(log_TELOMEAN ~ wqs+
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
+#               mix_name = mixture, data = dataset, q = 10, 
+#               validation = 0.6, b = 100, b1_pos = TRUE, b_constr = TRUE, family = "gaussian", 
+#               seed = 123)
+
+#save(result2, file="Supervised/WQS/saved_model/result2.RData") 
+load("Supervised/WQS/saved_model/result2.RData")
+
+gwqs_barplot(result2)
+gwqs_summary_tab(result2)
+gwqs_scatterplot(result2)
+sum(result2$bres$b1 > 0)
+sum(result2$bres$b1 < 0)
+```
+### Model 2 with rh=10
+```{r}
+#result2rh10 = gwqs(log_TELOMEAN ~ wqs+
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
+#               mix_name = mixture, data = dataset, q = 10, rh=10,
+#               validation = 0.6, b = 100, b1_pos = TRUE, b_constr = TRUE, family = "gaussian", 
+#               seed = 123)
+
+#save(result2rh10, file="Supervised/WQS/saved_model/result2rh10.RData") 
+load("Supervised/WQS/saved_model/result2rh10.RData")
+
+gwqs_boxplot(result2rh10)
+gwqs_summary_tab(result2rh10)
+
+sum(result2rh10$coefmat[,2] > 0)
+result2rh10$wmat
+```
+
+### Model 3
+
+```{r, model3,echo=TRUE, eval=FALSE}
+# negative direction
+#result3 = gwqs(log_TELOMEAN ~ wqs+
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
+#               mix_name = mixture, 
+#               data = dataset, q = 10, 
+#               validation = 0.6,  b = 100, b1_pos = FALSE, b_constr = TRUE, family = "gaussian", 
+#               seed = 123)
+
+#save(result3, file="Supervised/WQS/saved_model/result3.RData") 
+load("Supervised/WQS/saved_model/result3.RData")
+
+gwqs_summary_tab(result3)
+gwqs_barplot(result3)
+gwqs_scatterplot(result3)
+sum(result3$bres$b1 < 0)
+```
+
+### Model 4
+
+```{r, model4, echo=TRUE, cache = TRUE}
+#compare to random subset WQS
+#result4 = gwqs(log_TELOMEAN ~ wqs +
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
+#               mix_name = mixture, data = dataset, q = 10, 
+#               validation = 0.6,  b = 100, b1_pos = TRUE, b_constr = TRUE, family = "gaussian", 
+#               seed = 123, rs=TRUE, n_var=5) #3 for set of 9 and 5 for set of 18
+
+#save(result4, file="Supervised/WQS/saved_model/result4.RData") 
+load("Supervised/WQS/saved_model/result4.RData")
+
+gwqs_summary_tab(result4) 
+gwqs_barplot(result4)
+gwqs_scatterplot(result4)
+
+sum(result4$bres$b1 > 0)
+```
+
+```{r}
+#remove some previous models to free space in cloud 
+rm(results1)
+rm(result2)
+rm(result2rh10)
+rm(result3)
+rm(result4)
+```
+
+## Interactions
+
+### interaction only
+```{r, interaction, cache=TRUE, eval=TRUE}
+# WQS with interaction
+is.factor(dataset$male)
+#result2int = gwqs(log_TELOMEAN ~ wqs*male +
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, bint_cat_pos = TRUE,
+#               mix_name = mixture, data = dataset, q = 10, 
+#               validation = 0.6,  b = 100, b1_pos = TRUE, b_constr = TRUE, bint_cont_pos=TRUE,
+#               family = "gaussian", 
+#               seed = 123)
+
+#save(result2int, file="Supervised/WQS/saved_model/result2int.RData") 
+load("Supervised/WQS/saved_model/result2int.RData")
+
+gwqs_summary_tab(result2int) 
+gwqs_barplot(result2int)
+gwqs_scatterplot(result2int)
+#gwqs_weights_tab(result2int)
+```
+### stratified weights assuming same beta coefficent
+
+```{r, int2, cache = TRUE, eval=FALSE}
+# run the wqs model using the stratified variables in the mixture when the interaction term is not significant
+
+#result5 = gwqs(log_TELOMEAN ~ wqs +
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
+#               stratified="male", mix_name = mixture, data = dataset, q = 10, 
+#               validation = 0.6,  b = 100, b1_pos = TRUE, b_constr = TRUE, family = "gaussian", 
+#               seed = 123)
+
+#save(result5, file="Supervised/WQS/saved_model/result5.RData") 
+load("Supervised/WQS/saved_model/result5.RData")
+
+gwqs_summary_tab(result5)  
+gwqs_barplot(result5) 
+gwqs_scatterplot(result5) 
+
+```
+
+### stratified interaction WQS with strata-specific weights and beta coefficients
+
+```{r, int3, echo=TRUE, cache = TRUE}
+# run the wqs model using the stratified variables in the mixture with interaction
+
+#result6 = gwqs(log_TELOMEAN ~ wqs*male +
+#                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
+#                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat, 
+#               stratified="male", mix_name = mixture, data = dataset, q = 10, 
+#               validation = 0.6,  b = 100, b1_pos = TRUE, b_constr = TRUE, bint_cat_pos=TRUE, family = "gaussian", 
+#               seed = 123)
+
+# save(result6, file="Supervised/WQS/saved_model/result6.RData") 
+load("Supervised/WQS/saved_model/result6.RData")
+
+gwqs_summary_tab(result6) 
+gwqs_scatterplot(result6) 
+gwqs_barplot(result6) 
+b1 = result6$fit$coefficients[2] # slope for reference group = females
+b12 = result6$fit$coefficients[length(result6$fit$coefficients)]
+b2=b1+b12
+b2 # slope for males
+```
+
+```{r, divergent plots, cache = TRUE}
+#####################################################################
+## divergent plots
+## load libraries
+library(gapminder)
+library(tidyverse)
+library(stringr)
+
+forplot = result6$final_weights  ## specify the data to be used in the plot; i.e., WQS str int model
+#forplot$mean_weight = forplot$Estimate ## if the str int model is run
+
+forplot$strata = str_sub(forplot$mix_name,-1)
+forplot$chem = str_sub(forplot$mix_name,1,nchar(as.character(forplot$mix_name))-2)
+forplot$strataname = ifelse(forplot$strata == "1", "Male", "Female")
+
+resultstr <- forplot %>%
+  mutate(mean_weight = ifelse(strata == "1",
+                              mean_weight,
+                              -1*mean_weight)) 
+resultstr
+dim(resultstr)
+## calculate breaks values
+breaks_values <- pretty(resultstr$mean_weight)
+
+ggplot(data=resultstr,
+       aes(reorder(x = chem, mean_weight), y = mean_weight, fill = strataname))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  scale_y_continuous(breaks = breaks_values,
+                     labels = abs(breaks_values))+
+  theme_minimal()+
+  geom_hline(yintercept = 1/nrow(resultstr), linetype='dotted', col='black')+  
+  geom_hline(yintercept = -1/nrow(resultstr), linetype='dotted', col='black')+
+  geom_hline(yintercept = 0, col='black')+  
+  labs(x="Component", y="Mean Weight", fill="Strata")
+```
