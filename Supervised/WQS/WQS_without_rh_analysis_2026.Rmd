@@ -14,6 +14,7 @@ editor_options:
 
 ```{r setup, echo=TRUE, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = "/cloud/project")
 
 library(gWQS) # if you get an error loading the gWQS package, need to download x11 (XQuartz for Mac)
 library(tidyverse)
@@ -144,7 +145,7 @@ write.csv(lm_coefs, file=paste0(directory_path, "single_decile.csv"))
 
 ### Model 1
 
-```{r, model1, echo=TRUE, cache = TRUE}
+```{r, model1, echo=TRUE, cache = TRUE, warning = FALSE, results = 'asis'}
 # first fit an unadjusted model to look at the association between the mixture and the outcome
 # TELOMEAN = Mean Telomere Length
 #results1 = gwqs(log_TELOMEAN ~ wqs, mix_name = mixture, data = dataset, q = 10, validation = 0.6, 
@@ -167,7 +168,7 @@ summary(results1$fit)
 
 ### Model 2
 
-```{r, model2, echo=TRUE, cache = TRUE}
+```{r, model2, echo=TRUE, cache = TRUE, warning = FALSE, results = 'asis'}
 # adjusting for covariates:
 # blood data: LBXWBCSI LBXLYPCT LBXMOPCT LBXEOPCT LBXBAPCT LBXNEPCT
 # demographics: age_cent age_sq race_cat bmi_cat3 ln_lbxcot edu_cat male
@@ -190,7 +191,7 @@ sum(result2$bres$b1 > 0)
 sum(result2$bres$b1 < 0)
 ```
 ### Model 2 with rh=10
-```{r}
+```{r, warning = FALSE, results = 'asis'}
 #result2rh10 = gwqs(log_TELOMEAN ~ wqs+
 #                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
 #                 race_cat + bmi_cat3 + ln_lbxcot + edu_cat + male, 
@@ -210,7 +211,7 @@ result2rh10$wmat
 
 ### Model 3
 
-```{r, model3,echo=TRUE, eval=FALSE}
+```{r, model3,echo=TRUE, eval=FALSE, warning = FALSE, results = 'asis'}
 # negative direction
 #result3 = gwqs(log_TELOMEAN ~ wqs+
 #                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
@@ -231,7 +232,7 @@ sum(result3$bres$b1 < 0)
 
 ### Model 4
 
-```{r, model4, echo=TRUE, cache = TRUE}
+```{r, model4, echo=TRUE, cache = TRUE, warning = FALSE, results = 'asis'}
 #compare to random subset WQS
 #result4 = gwqs(log_TELOMEAN ~ wqs +
 #                 LBXWBCSI + LBXLYPCT + LBXMOPCT + LBXEOPCT + LBXBAPCT + LBXNEPCT + age_cent + age_sq + 
@@ -255,14 +256,13 @@ sum(result4$bres$b1 > 0)
 rm(results1)
 rm(result2)
 rm(result2rh10)
-rm(result3)
 rm(result4)
 ```
 
 ## Interactions
 
 ### interaction only
-```{r, interaction, cache=TRUE, eval=TRUE}
+```{r, interaction, cache=TRUE, eval=TRUE, warning = FALSE, results = 'asis'}
 # WQS with interaction
 is.factor(dataset$male)
 #result2int = gwqs(log_TELOMEAN ~ wqs*male +
@@ -283,7 +283,7 @@ gwqs_scatterplot(result2int)
 ```
 ### stratified weights assuming same beta coefficent
 
-```{r, int2, cache = TRUE, eval=FALSE}
+```{r, int2, cache = TRUE, eval=FALSE, warning = FALSE, results = 'asis'}
 # run the wqs model using the stratified variables in the mixture when the interaction term is not significant
 
 #result5 = gwqs(log_TELOMEAN ~ wqs +
@@ -304,7 +304,7 @@ gwqs_scatterplot(result5)
 
 ### stratified interaction WQS with strata-specific weights and beta coefficients
 
-```{r, int3, echo=TRUE, cache = TRUE}
+```{r, int3, echo=TRUE, cache = TRUE, warning = FALSE, results = 'asis'}
 # run the wqs model using the stratified variables in the mixture with interaction
 
 #result6 = gwqs(log_TELOMEAN ~ wqs*male +

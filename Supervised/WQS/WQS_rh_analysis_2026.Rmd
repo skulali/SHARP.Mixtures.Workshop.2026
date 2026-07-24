@@ -13,6 +13,7 @@ editor_options:
 
 ```{r setup, echo=TRUE, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = "/cloud/project")
 
 library(gWQS) # if you get an error loading the gWQS package, need to download x11 (XQuartz for Mac)
 library(tidyverse)
@@ -34,7 +35,7 @@ is.factor(dataset$male)
 ```
 
 # WQS stratified interaction
-```{r, echo=TRUE}
+```{r, echo=TRUE, warning = FALSE, results = 'asis'}
 ################################ takes FOREVER ##########################
 #repeated holdout stratified interaction WQS
 ## positive direction

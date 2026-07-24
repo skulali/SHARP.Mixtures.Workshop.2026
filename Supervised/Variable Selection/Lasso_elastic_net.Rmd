@@ -83,6 +83,8 @@ It's helpful to note that chemical exposures appear in columns 1 to 18, and more
 
 A few quick plots to examine associations between exposures and the outcome. First, chemical exposures:
 
+g: grid lines; p: points; smooth: Loess
+
 ```{r dataviz, warning = FALSE}
 # Visualize log-transformed x variables
 featurePlot(x = x[,1:18],

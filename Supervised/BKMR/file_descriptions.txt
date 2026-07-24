@@ -1,0 +1,20 @@
+1. BKMR code - NHANES - Lab2026_Rcloud.R:  
+This is the only one that is meant to run on Posit Cloud due to the memory limit. It has a subset number of posterior samples.
+
+2. BKMR code - NHANES - Lab2026_Rcloud.Rmd: 
+The markdown version of BKMR code - NHANES - Lab2026_Rcloud.R. 
+
+3. BKMR code - NHANES - Lab2026_Rcloud.html: 
+The html file corresponding to Rmd file.
+
+4. BKMR code - NHANES - Lab2026_Rcloud_Simpler.R:  
+This generates the same plots as BKMR code - NHANES - Lab2026.R,  just using base R instead of tidyverse. 
+
+5. bkmr_example2026.R: 
+This is what I would use for example code if I was running a new analysis. (For your reference, not ran on Posit Cloud because of the memory limit). 
+
+6. bkmr_example2026.Rmd: 
+The markdown version of bkmr_example2026.R. 
+
+7. bkmr_example2026.html: 
+The html file corresponding to Rmd file. 
